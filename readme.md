@@ -67,10 +67,3 @@ assets/admin.css      admin styles
 supabase/schema.sql   tables, rules and functions (run first)
 supabase/seed.sql     optional sample equipment
 ```
-
-## Ideas for later
-
-- Printable QR labels on each item that open its page.
-- Kits (one booking button for a recorder + mic + cables).
-- Automatic emails on approval and the day before return.
-- Opening hours, so pick-ups can only fall when the desk is staffed.
