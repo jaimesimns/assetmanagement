@@ -139,12 +139,16 @@ async function q(promise) {
 }
 
 async function loadRefs() {
-  const [eq, cats, st] = await Promise.all([
+  const [eq, cats, st, hrs, cls] = await Promise.all([
     q(sb.from('equipment').select('*').order('name')),
     q(sb.from('categories').select('*').order('sort_order').order('name')),
     q(sb.from('settings').select('*').eq('id', 1).single()),
+    q(sb.from('desk_hours').select('*').order('weekday').order('opens')),
+    q(sb.from('desk_closures').select('*').order('day')),
   ]);
   A.equipment = eq; A.categories = cats; A.settings = st;
+  A.hours = hrs.map(h => ({ weekday: h.weekday, opens: h.opens.slice(0, 5), closes: h.closes.slice(0, 5) }));
+  A.closures = cls;
   $('#org-name').textContent = st.org_name || 'Equipment loans';
   document.title = `Admin · ${st.org_name || 'Equipment loans'}`;
 }
@@ -933,6 +937,22 @@ function renderSettings(v) {
       </fieldset>
 
       <fieldset class="card-ish">
+        <legend>Desk hours</legend>
+        <p class="muted small">Students can only choose pick-up and return times inside these hours. Leave the list empty to allow any time. Bookings you make yourself on this admin side aren't limited.</p>
+        <div id="hours-list" class="hours-list"></div>
+        <button type="button" class="btn btn--small" id="hours-add">Add opening time</button>
+        <h3 class="sub-legend">Closed dates</h3>
+        <p class="muted small">Days the desk is shut even if it's a normal opening day, such as holidays.</p>
+        <div id="closures-list" class="hours-list"></div>
+        <button type="button" class="btn btn--small" id="closure-add">Add closed date</button>
+        <div class="field" style="margin-top:1.25rem">
+          <label for="s-tz">Time zone of the desk</label>
+          <input type="text" id="s-tz" value="${esc(s.timezone || 'Europe/Amsterdam')}" list="tz-list">
+          <datalist id="tz-list"><option value="Europe/Amsterdam"><option value="Europe/Brussels"><option value="Europe/London"><option value="America/Toronto"></datalist>
+        </div>
+      </fieldset>
+
+      <fieldset class="card-ish">
         <legend>Booking rules</legend>
         <div class="row">
           <div class="field"><label for="s-notice-h">Minimum notice (hours)</label><input type="number" min="0" id="s-notice-h" value="${s.min_notice_hours}"></div>
@@ -961,6 +981,47 @@ function renderSettings(v) {
       "Add another admin" SQL from the README with their email.</p>
     </section>`;
 
+  // ---- desk hours editor
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const hours = A.hours.map(h => ({ ...h }));
+  const closures = A.closures.map(c => ({ ...c }));
+  const drawHours = () => {
+    $('#hours-list').innerHTML = hours.length ? hours.map((h, i) => `<div class="hours-row" data-i="${i}">
+        <select data-k="weekday" aria-label="Day">${DAYS.map((d, n) => `<option value="${n + 1}" ${h.weekday === n + 1 ? 'selected' : ''}>${d}</option>`).join('')}</select>
+        <input type="time" data-k="opens" value="${h.opens}" step="900" aria-label="Opens">
+        <span>to</span>
+        <input type="time" data-k="closes" value="${h.closes}" step="900" aria-label="Closes">
+        <button type="button" class="btn btn--small btn--ghost" data-rm aria-label="Remove">Remove</button>
+      </div>`).join('') : '<p class="small">No desk hours: students can choose any time.</p>';
+  };
+  const drawClosures = () => {
+    $('#closures-list').innerHTML = closures.map((c, i) => `<div class="hours-row" data-i="${i}">
+        <input type="date" data-k="day" value="${esc(c.day || '')}" aria-label="Date">
+        <input type="text" data-k="label" value="${esc(c.label || '')}" placeholder="Reason (optional)" aria-label="Reason">
+        <button type="button" class="btn btn--small btn--ghost" data-rm aria-label="Remove">Remove</button>
+      </div>`).join('');
+  };
+  drawHours(); drawClosures();
+  const editList = (el, arr, draw) => {
+    el.addEventListener('input', e => {
+      const row = e.target.closest('[data-i]'); if (!row) return;
+      const k = e.target.dataset.k;
+      arr[row.dataset.i][k] = k === 'weekday' ? Number(e.target.value) : e.target.value;
+    });
+    el.addEventListener('click', e => {
+      if (!e.target.closest('[data-rm]')) return;
+      arr.splice(Number(e.target.closest('[data-i]').dataset.i), 1); draw();
+    });
+  };
+  editList($('#hours-list'), hours, drawHours);
+  editList($('#closures-list'), closures, drawClosures);
+  $('#hours-add').onclick = () => {
+    const last = hours.at(-1);
+    hours.push(last ? { weekday: last.weekday % 7 + 1, opens: last.opens, closes: last.closes } : { weekday: 1, opens: '10:00', closes: '12:00' });
+    drawHours();
+  };
+  $('#closure-add').onclick = () => { closures.push({ day: '', label: '' }); drawClosures(); };
+
   $('#s-copy').onclick = () => { navigator.clipboard?.writeText(publicUrl()).then(() => toast('Link copied')); };
   sb.from('admins').select('email,created_at').order('created_at').then(({ data }) => {
     $('#admin-list').innerHTML = (data || []).map(a => `<div>${esc(a.email || '(no email recorded)')}</div>`).join('');
@@ -983,7 +1044,18 @@ function renderSettings(v) {
       require_student_id: $('#s-sid-req').checked,
       auto_approve: $('#s-auto').checked,
     };
+    val.timezone = $('#s-tz').value.trim() || 'Europe/Amsterdam';
+    for (const h of hours) {
+      if (!h.opens || !h.closes || h.closes <= h.opens) {
+        toast(`${DAYS[h.weekday - 1]}: the closing time needs to be after the opening time.`, 'error');
+        return;
+      }
+    }
     await q(sb.from('settings').update(val).eq('id', 1));
+    await q(sb.rpc('admin_set_desk_hours', {
+      p_hours: hours,
+      p_closures: closures.filter(c => c.day).map(c => ({ day: c.day, label: c.label })),
+    }));
     await loadRefs();
     toast('Settings saved');
   };

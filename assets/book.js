@@ -3,6 +3,7 @@ import {
   fromLocalInput, overlaps, humanDuration, badge, assetTag, errMsg, toast, notConfiguredHTML,
   safeStorage, STATUS,
 } from './common.js';
+import { openDays, hoursText, dayLabel, timeLabel } from './desk.js';
 
 const sb = makeClient(false);
 const store = safeStorage();
@@ -80,8 +81,11 @@ function route() {
 }
 
 // ------------------------------------------------------------------ dates
+const deskMode = () => (state.settings.desk_hours || []).length > 0;
+
 function setDefaultWindow() {
   const s = state.settings;
+  if (deskMode()) { setupSlots(); return; }
   const earliest = new Date(Date.now() + (s.min_notice_hours || 0) * 36e5);
   const start = new Date(earliest);
   start.setMinutes(0, 0, 0);
@@ -101,6 +105,9 @@ function setDefaultWindow() {
 
 function windowProblem() {
   const s = state.settings, a = state.start, b = state.end;
+  if (deskMode() && !state.pickDays?.length) return 'There are no pick-up times available at the moment.';
+  if (deskMode() && !a) return 'Choose a pick-up time.';
+  if (deskMode() && !b) return `There's no desk time within ${s.max_days} days of that pick-up. Choose another pick-up day.`;
   if (!a || !b || isNaN(a) || isNaN(b)) return 'Choose a pick-up and return time.';
   if (b <= a) return 'The return time needs to be after the pick-up time.';
   if (a < new Date(Date.now() + s.min_notice_hours * 36e5 - 6e4))
@@ -114,7 +121,8 @@ function rulesText() {
   const parts = [];
   if (s.min_notice_hours) parts.push(`at least ${s.min_notice_hours} hours' notice`);
   parts.push(`up to ${s.max_days} days`);
-  return `Bookings need ${parts.join(' and can last ')}.`;
+  const rules = `Bookings need ${parts.join(' and can last ')}.`;
+  return deskMode() ? `Pick-up and return at the desk: ${hoursText(s.desk_hours)}. ${rules}` : rules;
 }
 
 async function loadAvailability() {
@@ -124,6 +132,78 @@ async function loadAvailability() {
   if (error) { toast(errMsg(error), 'error'); return; }
   state.avail = data || [];
   state.availFrom = from; state.availTo = to;
+}
+
+// ------------------------------------------------------------------ desk-hour slots
+function setupSlots() {
+  $('#free-fields').classList.add('hidden');
+  $('#slot-fields').classList.remove('hidden');
+  const s = state.settings, tz = s.timezone || 'Europe/Amsterdam';
+  const earliest = Date.now() + (s.min_notice_hours || 0) * 36e5;
+  state.slotDays = openDays(s.desk_hours, s.closures, tz, new Date(), 380);
+  state.pickDays = state.slotDays
+    .map(d => ({ key: d.key, times: d.times.filter(t => t.getTime() >= earliest) }))
+    .filter(d => d.times.length).slice(0, 40);
+
+  const fill = (sel, opts, keep) => {
+    sel.innerHTML = opts.map(o => `<option value="${o.value}">${esc(o.label)}</option>`).join('');
+    sel.disabled = !opts.length;
+    if (keep && opts.some(o => o.value === keep)) sel.value = keep;
+  };
+
+  const fillStartTimes = keepTime => {
+    const day = state.pickDays.find(d => d.key === $('#start-day').value);
+    fill($('#start-time'), (day?.times || []).map(t => ({ value: t.toISOString(), label: timeLabel(t, tz) })), keepTime);
+    state.start = $('#start-time').value ? new Date($('#start-time').value) : null;
+  };
+
+  const fillReturn = () => {
+    const a = state.start;
+    const prevDay = $('#end-day').value;
+    const prevTime = state.end && timeLabel(state.end, tz);
+    const days = !a ? [] : state.slotDays
+      .map(d => ({ key: d.key, times: d.times.filter(t => t > a && t - a <= s.max_days * DAY) }))
+      .filter(d => d.times.length);
+    // default: the next open day after pick-up, at closing time
+    const dflt = days.find(d => d.key !== state.pickDayKey) || days[0];
+    // keep the student's own return choice while it's still valid; otherwise suggest one
+    const keepDay = state.endTouched && days.some(d => d.key === prevDay) ? prevDay : dflt?.key;
+    fill($('#end-day'), days.map(d => ({ value: d.key, label: dayLabel(d.times[0], tz) })), keepDay);
+    const day = days.find(d => d.key === $('#end-day').value);
+    const times = (day?.times || []).map(t => ({ value: t.toISOString(), label: timeLabel(t, tz) }));
+    fill($('#end-time'), times, times.find(o => o.label === prevTime)?.value ?? times.at(-1)?.value);
+    state.end = $('#end-time').value ? new Date($('#end-time').value) : null;
+  };
+  state.fillReturn = fillReturn;
+
+  fill($('#start-day'), state.pickDays.map(d => ({ value: d.key, label: dayLabel(d.times[0], tz) })));
+  state.pickDayKey = $('#start-day').value;
+  fillStartTimes();
+  fillReturn();
+
+  const changed = async () => {
+    if (state.end && state.availTo && state.end > state.availTo) await loadAvailability();
+    renderAll();
+  };
+  $('#start-day').addEventListener('change', () => {
+    const keep = state.start && timeLabel(state.start, tz);
+    state.pickDayKey = $('#start-day').value;
+    const day = state.pickDays.find(d => d.key === state.pickDayKey);
+    fillStartTimes(day?.times.find(t => timeLabel(t, tz) === keep)?.toISOString());
+    fillReturn(); changed();
+  });
+  $('#start-time').addEventListener('change', () => { state.start = new Date($('#start-time').value); fillReturn(); changed(); });
+  $('#end-day').addEventListener('change', () => {
+    state.endTouched = true;
+    const keep = state.end && timeLabel(state.end, tz);
+    const day = state.slotDays.find(d => d.key === $('#end-day').value);
+    const times = day.times.filter(t => t > state.start && t - state.start <= s.max_days * DAY)
+      .map(t => ({ value: t.toISOString(), label: timeLabel(t, tz) }));
+    fill($('#end-time'), times, times.find(o => o.label === keep)?.value ?? times.at(-1)?.value);
+    state.end = new Date($('#end-time').value);
+    changed();
+  });
+  $('#end-time').addEventListener('change', () => { state.endTouched = true; state.end = new Date($('#end-time').value); changed(); });
 }
 
 // ------------------------------------------------------------------ availability per item

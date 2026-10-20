@@ -84,7 +84,7 @@ label { display: block; font-weight: 600; font-size: .925rem; margin-bottom: .3r
 .field .hint { font-weight: 400; color: var(--ink-2); font-size: .85rem; margin-top: .25rem; }
 .req::after { content: ' *'; color: var(--overdue); }
 input[type=text], input[type=email], input[type=tel], input[type=search], input[type=password],
-input[type=number], input[type=url], input[type=datetime-local], input[type=date], select, textarea {
+input[type=number], input[type=url], input[type=datetime-local], input[type=date], input[type=time], select, textarea {
   width: 100%; min-height: 2.6rem; padding: .5rem .7rem;
   font: inherit; color: var(--ink); background: var(--surface);
   border: 1px solid var(--line-strong); border-radius: var(--r-s);
