@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>Loans admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <link rel="stylesheet" href="../assets/admin.css">
+  <script type="module" src="../assets/admin.js"></script>
+</head>
+<body>
+  <div id="boot" class="empty"><span class="spinner"></span></div>
+
+  <!-- ============ Sign in ============ -->
+  <div id="auth" class="auth hidden">
+    <form id="login-form" class="auth-card" novalidate>
+      <h1>Sign in</h1>
+      <p class="muted" id="auth-sub">Staff access to equipment loans.</p>
+      <div id="auth-msg"></div>
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" autocomplete="username" required>
+      </div>
+      <div class="field" id="pw-field">
+        <label for="login-pw">Password</label>
+        <input type="password" id="login-pw" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit" id="login-btn">Sign in</button>
+      <p class="small" style="margin-top:1rem"><button type="button" class="linkish" id="forgot">Forgot your password?</button></p>
+    </form>
+
+    <form id="reset-form" class="auth-card hidden" novalidate>
+      <h1>Choose a new password</h1>
+      <div id="reset-msg"></div>
+      <div class="field">
+        <label for="new-pw">New password</label>
+        <input type="password" id="new-pw" autocomplete="new-password" minlength="8" required>
+        <div class="hint">At least 8 characters.</div>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">Save password</button>
+    </form>
+
+    <div id="not-admin" class="auth-card hidden">
+      <h1>No admin access</h1>
+      <p>You're signed in as <strong id="na-email"></strong>, but this account isn't on the admin list.</p>
+      <p class="muted small">An existing admin can add you by running the SQL in the README ("Add another admin").</p>
+      <button class="btn" type="button" data-signout>Sign out</button>
+    </div>
+  </div>
+
+  <!-- ============ App ============ -->
+  <div id="shell" class="shell hidden">
+    <aside class="side">
+      <div class="side-brand">
+        <span id="org-name">Equipment loans</span>
+        <a class="small" id="public-link" href="../" target="_blank" rel="noopener">Student page</a>
+      </div>
+      <nav class="side-nav" aria-label="Admin">
+        <a href="#/today" data-nav="today">Today</a>
+        <a href="#/bookings" data-nav="bookings">Bookings <span class="count hidden" id="nav-pending"></span></a>
+        <a href="#/calendar" data-nav="calendar">Calendar</a>
+        <a href="#/equipment" data-nav="equipment">Equipment</a>
+        <a href="#/settings" data-nav="settings">Settings</a>
+      </nav>
+      <div class="side-foot">
+        <span class="small muted" id="me-email"></span>
+        <button class="btn btn--small btn--ghost" type="button" data-signout>Sign out</button>
+      </div>
+    </aside>
+    <main id="view" class="view" tabindex="-1"></main>
+  </div>
+
+  <!-- Booking detail -->
+  <dialog id="dlg-booking" class="dlg-wide" aria-labelledby="bk-title">
+    <div class="dlg-head">
+      <h2 id="bk-title"></h2>
+      <button type="button" class="close-x" data-close aria-label="Close">×</button>
+    </div>
+    <div class="dlg-body" id="bk-body"></div>
+    <div class="dlg-foot" id="bk-actions"></div>
+  </dialog>
+
+  <!-- Create / edit booking -->
+  <dialog id="dlg-edit" class="dlg-wide" aria-labelledby="ed-title">
+    <form id="ed-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="ed-title">New booking</h2>
+        <button type="button" class="close-x" data-close aria-label="Close">×</button>
+      </div>
+      <div class="dlg-body">
+        <div id="ed-error"></div>
+        <div class="row">
+          <div class="field"><label for="ed-start" class="req">Pick up</label><input type="datetime-local" id="ed-start" step="900" required></div>
+          <div class="field"><label for="ed-end" class="req">Return</label><input type="datetime-local" id="ed-end" step="900" required></div>
+          <div class="field" id="ed-status-field"><label for="ed-status">Start as</label>
+            <select id="ed-status">
+              <option value="approved">Approved</option>
+              <option value="checked_out">Collected now</option>
+              <option value="pending">Pending</option>
+            </select>
+          </div>
+        </div>
+        <fieldset class="picker">
+          <legend>Items</legend>
+          <input type="search" id="ed-q" placeholder="Filter items" aria-label="Filter items">
+          <div id="ed-items" class="picker-list"></div>
+        </fieldset>
+        <div class="row">
+          <div class="field"><label for="ed-name" class="req">Name</label><input type="text" id="ed-name" required></div>
+          <div class="field"><label for="ed-email" class="req">Email</label><input type="email" id="ed-email" required></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="ed-sid">Student number</label><input type="text" id="ed-sid"></div>
+          <div class="field"><label for="ed-phone">Phone</label><input type="tel" id="ed-phone"></div>
+        </div>
+        <div class="field"><label for="ed-course">Course, project or supervisor</label><input type="text" id="ed-course"></div>
+        <div class="field"><label for="ed-purpose">Purpose</label><textarea id="ed-purpose" rows="2"></textarea></div>
+        <div class="field"><label for="ed-internal">Staff note <span class="muted">(only admins see this)</span></label><textarea id="ed-internal" rows="2"></textarea></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn btn--primary" id="ed-save">Save booking</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Equipment -->
+  <dialog id="dlg-eq" class="dlg-wide" aria-labelledby="eq-title">
+    <form id="eq-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="eq-title">Add item</h2>
+        <button type="button" class="close-x" data-close aria-label="Close">×</button>
+      </div>
+      <div class="dlg-body">
+        <div id="eq-error"></div>
+        <div class="row">
+          <div class="field" style="flex-basis:20rem"><label for="eq-name" class="req">Name</label><input type="text" id="eq-name" required></div>
+          <div class="field"><label for="eq-tag">Asset number</label><input type="text" id="eq-tag" placeholder="e.g. AUD-003"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="eq-cat">Category</label><select id="eq-cat"></select></div>
+          <div class="field"><label for="eq-loc">Kept at</label><input type="text" id="eq-loc" placeholder="e.g. Cabinet B"></div>
+        </div>
+        <div class="field"><label for="eq-desc">Description <span class="muted">(students see this: what's included, what it's for)</span></label><textarea id="eq-desc" rows="3"></textarea></div>
+        <div class="row">
+          <div class="field"><label for="eq-status">Condition</label>
+            <select id="eq-status">
+              <option value="available">Available</option>
+              <option value="maintenance">In maintenance</option>
+              <option value="retired">Retired</option>
+            </select>
+          </div>
+          <div class="field"><label for="eq-serial">Serial number</label><input type="text" id="eq-serial"></div>
+        </div>
+        <label class="check field"><input type="checkbox" id="eq-bookable" checked> Students can book this</label>
+        <div class="field">
+          <label for="eq-img">Photo</label>
+          <div class="img-row">
+            <img id="eq-img-preview" class="img-preview hidden" alt="">
+            <div style="flex:1">
+              <input type="url" id="eq-img" placeholder="Paste an image link, or upload">
+              <div class="row" style="margin-top:.5rem">
+                <label class="btn btn--small" for="eq-file" style="margin:0">Upload photo</label>
+                <input type="file" id="eq-file" accept="image/*" class="visually-hidden">
+                <button type="button" class="btn btn--small btn--ghost" id="eq-img-clear">Remove photo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field"><label for="eq-notes">Staff notes <span class="muted">(only admins see this)</span></label><textarea id="eq-notes" rows="2"></textarea></div>
+        <div id="eq-history"></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn btn--danger" id="eq-delete">Delete</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn" id="eq-copy">Save as a copy</button>
+        <button type="submit" class="btn btn--primary">Save item</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Confirm with optional note -->
+  <dialog id="dlg-act" aria-labelledby="act-title">
+    <form id="act-form" method="dialog" novalidate>
+      <div class="dlg-head">
+        <h2 id="act-title"></h2>
+        <button type="button" class="close-x" data-close aria-label="Close">×</button>
+      </div>
+      <div class="dlg-body">
+        <p id="act-text"></p>
+        <div class="field">
+          <label for="act-note" id="act-label"></label>
+          <textarea id="act-note" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn" data-close>Back</button>
+        <button type="submit" class="btn btn--primary" id="act-ok"></button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
