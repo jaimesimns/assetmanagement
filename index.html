@@ -28,7 +28,7 @@
     <section id="view-book" class="hidden">
       <div class="when">
         <h1>When do you need it?</h1>
-        <div class="when-fields">
+        <div class="when-fields" id="free-fields">
           <div class="field">
             <label for="start">Pick up</label>
             <input type="datetime-local" id="start" step="900">
@@ -37,6 +37,17 @@
           <div class="field">
             <label for="end">Return</label>
             <input type="datetime-local" id="end" step="900">
+          </div>
+        </div>
+        <div class="when-fields hidden" id="slot-fields">
+          <div class="field">
+            <label for="start-day">Pick up</label>
+            <div class="slot"><select id="start-day"></select><select id="start-time" aria-label="Pick-up time"></select></div>
+          </div>
+          <span class="when-arrow" aria-hidden="true"></span>
+          <div class="field">
+            <label for="end-day">Return</label>
+            <div class="slot"><select id="end-day"></select><select id="end-time" aria-label="Return time"></select></div>
           </div>
         </div>
         <p class="when-hint" id="when-hint" aria-live="polite"></p>
