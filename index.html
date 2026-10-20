@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Book equipment</title>
+  <meta name="description" content="Request equipment on loan — no account needed.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/book.css">
+  <script type="module" src="assets/book.js"></script>
+</head>
+<body>
+  <a class="visually-hidden" href="#main">Skip to content</a>
+  <header class="site-head">
+    <a class="brand" href="./" id="brand">Equipment loans</a>
+    <nav>
+      <a href="#check" id="nav-check">Check a booking</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <div id="boot" class="empty"><span class="spinner"></span> Loading equipment…</div>
+
+    <!-- ============ Booking ============ -->
+    <section id="view-book" class="hidden">
+      <div class="when">
+        <h1>When do you need it?</h1>
+        <div class="when-fields">
+          <div class="field">
+            <label for="start">Pick up</label>
+            <input type="datetime-local" id="start" step="900">
+          </div>
+          <span class="when-arrow" aria-hidden="true"></span>
+          <div class="field">
+            <label for="end">Return</label>
+            <input type="datetime-local" id="end" step="900">
+          </div>
+        </div>
+        <p class="when-hint" id="when-hint" aria-live="polite"></p>
+      </div>
+
+      <div class="layout">
+        <div class="catalogue">
+          <div class="filters">
+            <label class="visually-hidden" for="q">Search equipment</label>
+            <input type="search" id="q" placeholder="Search equipment" autocomplete="off">
+            <div class="chips" id="cats" role="group" aria-label="Filter by category"></div>
+            <label class="check small only-free"><input type="checkbox" id="only-free"> Only show what's free</label>
+          </div>
+          <div id="items"></div>
+        </div>
+
+        <aside class="basket panel" id="basket" aria-label="Your request">
+          <h2>Your request</h2>
+          <div id="basket-list"></div>
+          <button class="btn btn--primary btn--block" id="btn-review" disabled>Review request</button>
+        </aside>
+      </div>
+
+      <div class="basket-bar" id="basket-bar" hidden>
+        <span id="basket-bar-count"></span>
+        <button class="btn btn--primary" id="btn-review-bar">Review request</button>
+      </div>
+    </section>
+
+    <!-- ============ Sent ============ -->
+    <section id="view-done" class="narrow hidden" tabindex="-1">
+      <h1 id="done-title">Request sent</h1>
+      <p class="lead" id="done-lead"></p>
+      <div class="ref-block">
+        <span class="ref-label">Your booking reference</span>
+        <span class="tag tag--big" id="done-ref"></span>
+      </div>
+      <p class="muted">Keep this reference. With your email address, it's how you check the status or cancel.</p>
+      <div id="done-pickup"></div>
+      <div class="row">
+        <a class="btn btn--primary" id="done-check" href="#check">Check status</a>
+        <a class="btn" href="./" id="done-again">Book something else</a>
+      </div>
+    </section>
+
+    <!-- ============ Check ============ -->
+    <section id="view-check" class="narrow hidden">
+      <h1>Check a booking</h1>
+      <p class="muted">Enter the reference you got when you made the request, and the email address you used.</p>
+      <form id="check-form" class="panel on-surface" novalidate>
+        <div class="row">
+          <div class="field">
+            <label for="check-ref">Reference</label>
+            <input type="text" id="check-ref" placeholder="ABCD-1234" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+          </div>
+          <div class="field">
+            <label for="check-email">Email</label>
+            <input type="email" id="check-email" autocomplete="email" required>
+          </div>
+        </div>
+        <button class="btn btn--primary" type="submit">Find booking</button>
+        <div id="recent"></div>
+      </form>
+      <div id="check-result" aria-live="polite"></div>
+      <p><a href="./">Back to booking</a></p>
+    </section>
+  </main>
+
+  <!-- Review & send -->
+  <dialog id="dlg-request" aria-labelledby="req-title">
+    <form id="req-form" novalidate>
+      <div class="dlg-head">
+        <h2 id="req-title">Review and send</h2>
+        <button type="button" class="close-x" data-close aria-label="Close">×</button>
+      </div>
+      <div class="dlg-body">
+        <div class="req-when" id="req-when"></div>
+        <ul class="req-items" id="req-items"></ul>
+        <div id="req-error"></div>
+        <div class="row">
+          <div class="field">
+            <label for="f-name" class="req">Full name</label>
+            <input type="text" id="f-name" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label for="f-email" class="req">Email</label>
+            <input type="email" id="f-email" autocomplete="email" required>
+            <div class="hint" id="f-email-hint"></div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="f-sid" id="f-sid-label">Student number</label>
+            <input type="text" id="f-sid" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="f-phone">Phone <span class="muted">(optional)</span></label>
+            <input type="tel" id="f-phone" autocomplete="tel">
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-course">Course, project or supervisor</label>
+          <input type="text" id="f-course">
+        </div>
+        <div class="field">
+          <label for="f-purpose">What will you use it for?</label>
+          <textarea id="f-purpose" rows="3"></textarea>
+        </div>
+        <div id="terms-box" class="hidden">
+          <div class="terms" id="terms-text"></div>
+          <label class="check"><input type="checkbox" id="f-terms"> I've read and agree to the conditions above</label>
+        </div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="btn" data-close>Keep browsing</button>
+        <button type="submit" class="btn btn--primary" id="btn-send">Send request</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Item details -->
+  <dialog id="dlg-item" aria-labelledby="item-title">
+    <div class="dlg-head">
+      <h2 id="item-title"></h2>
+      <button type="button" class="close-x" data-close aria-label="Close">×</button>
+    </div>
+    <div class="dlg-body" id="item-body"></div>
+    <div class="dlg-foot">
+      <button type="button" class="btn" data-close>Close</button>
+      <button type="button" class="btn btn--primary" id="item-add">Add to request</button>
+    </div>
+  </dialog>
+</body>
+</html>
