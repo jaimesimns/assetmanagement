@@ -47,23 +47,6 @@ Jay's notes for later:
 3. When they collect: **Hand out**. When they bring it back: **Check in**, noting anything missing.
    If something needs repair, open the item and set its condition to **In maintenance**; students
    can't book it until you set it back.
-4. Overdue loans show in red on Today, the calendar and the equipment list, with a ready-made
-   reminder email.
+4. Overdue loans show in red on Today, the calendar and the equipment list, with a prepared email for reminders (must send by yourself)
 
-- **Backups:** Bookings → All → Export CSV gives you a spreadsheet at any time. Supabase also has
-  database backups in its dashboard.
-
-## Files
-```
-index.html            student booking page
-admin/index.html      admin app
-assets/config.js      ← your Supabase URL and public key
-assets/common.js      shared helpers
-assets/book.js        student page logic
-assets/admin.js       admin logic
-assets/style.css      shared styles and colours
-assets/book.css       student page styles
-assets/admin.css      admin styles
-supabase/schema.sql   tables, rules and functions (run first)
-supabase/seed.sql     optional sample equipment
-```
+- **Backups:** Bookings → All → Export CSV for an overview.
